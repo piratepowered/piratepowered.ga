@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <meta name="theme-color" content="#171a21">
+        <meta name="robots" content="noindex, nofollow, noodp, notranslate, noimageindex">
+        <title>PiratePowered</title>
+        <link rel="icon" sizes="256x256" href="/logo_256.png">
+        <link href="//steamstore-a.akamaihd.net/public/shared/css/motiva_sans.css" rel="stylesheet" type="text/css" >
+        <link href="//steamstore-a.akamaihd.net/public/shared/css/shared_global.css" rel="stylesheet" type="text/css" >
+        <link href="//steamstore-a.akamaihd.net/public/shared/css/buttons.css" rel="stylesheet" type="text/css" >
+        <link href="//steamstore-a.akamaihd.net/public/css/v6/store.css" rel="stylesheet" type="text/css" >
+        <link href="//steamstore-a.akamaihd.net/public/css/v6/account.css" rel="stylesheet" type="text/css" >
+        <link href="//steamstore-a.akamaihd.net/public/css/v6/steamaccount.css" rel="stylesheet" type="text/css" >
+        <link href="//steamstore-a.akamaihd.net/public/css/v6/search.css" rel="stylesheet" type="text/css" >
+        <script src="//ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+        <script src="//cdnjs.cloudflare.com/ajax/libs/jquery_lazyload/1.9.7/jquery.lazyload.js"></script>
+        <script type="text/javascript">
+            const totalApps = %%TOTAL%%;
+            const totalDownloads = %%DLTOTAL%%;
+			const language = "%%LANG%%";
+            var mode = "default";
+			$.ajaxPrefilter(function (options, originalOptions, jqXHR) {
+				var data = originalOptions.data;
+				if (originalOptions.data !== undefined) {
+					if (Object.prototype.toString.call(originalOptions.data) === '[object String]') {
+						data = $.deparam(originalOptions.data); // see http://benalman.com/code/projects/jquery-bbq/examples/deparam/
+					}
+				} else {
+					data = {};
+				}
+				options.data = $.param($.extend(data, { lang: language }));
+			});
+            $(document).ready(function() {
+                $("#main img").lazyload({
+                    effect : "fadeIn",
+                    placeholder: "applogo.gif"
+                });
+                $(document).mouseup(function(e) {
+                    var container = $(".dselect_container");
+                    if (!container.is(e.target) && container.has(e.target).length === 0) {
+                        container.find(".dropdownvisible").addClass("dropdownhidden").removeClass("dropdownvisible");
+                    }
+                });
+                generatePages(parseInt($("#count").text()));
+                $(document).on("click", "#main button[name=vote]", function() {
+                    var button = $(this);
+                    var appid = $(button).data("appid");
+                    $(button).prop("disabled", true);
+                    $.post("/", { action: "vote", appid: appid }, function(json) {
+                        if (json.success) {
+                            $("#votes_" + appid).fadeOut(function() {
+                                $("#votes_" + appid).html(parseInt($("#votes_" + appid).text().replace("+", "")) + 1);
+                                $(button).remove();
+                                $("#votes_" + appid).fadeIn();
+                            });
+                        } else {
+                            $(button).find("h2").fadeOut(function() {
+                                $(button).prop("disabled", false);
+                                $(button).find("h2").text("+")
+                                $(button).find("h2").fadeIn();
+                            });
+                            alert(json.message);
+                        }
+                    });
+                }).on("click", "a[href*='http://'], a[href*='https://']", openWithoutReferrer);
+                setInterval(function() {
+                    if (!document.hidden) $.post("/", { action: "status"}, function(json) {
+                        if (json.success && $("#globalstatus").text() != json.data) {
+                            $("#globalstatus").fadeOut(function() {
+                                $("#globalstatus").text(json.data);
+                                $("#globalstatus").fadeIn();
+                            });
+                        }
+                    });
+                }, 5000);
+                
+            });
+            
+            function downloadFile(elem, index, date, appid) {
+                var text = $(elem).text();
+                $(elem).text("Requesting..").prop("disabled", true);
+                $.post("/", { action: "download", appid: appid, date: date, index: index }, function(json) {
+                    if (json.success) {
+                        window.open(json.data, "_blank");
+                        $(elem).text(text + " ➨").attr("href", json.data).attr("target", "_blank").removeAttr("onclick");
+                        $(elem).parents(".dselect_container").click();
+                    } else {
+                        alert(json.message);
+                        $(elem).text(text);
+                    }
+                    $(elem).prop("disabled", false);
+                });
+            }
+            
+            function changePage(page) {
+                $("#page").text(page);
+                if (mode === "download") {
+                    downloads();
+                } else if (mode === "default") {
+                    search();
+                }
+            }
+            
+            function changeCount(count) {
+                $("#count").text(count);
+                generatePages(count);
+                if (mode === "download") {
+                    downloads();
+                } else if (mode === "default") {
+                    search();
+                }
+            }
+            
+            function generatePages(count) {
+                var html = "";
+                var total = mode === "download" ? Math.ceil(totalDownloads/count) : Math.ceil(totalApps/count);
+                for (var i = 1; i <= total; i++) {
+                    html += '<a class="inactive_selection" tabindex="99999" href="javascript:changePage(' + i +
+                    ')" onmouseover="$(this).toggleClass(\'highlighted_selection inactive_selection\')" onmouseleave="$(this).toggleClass(\'highlighted_selection inactive_selection\')">'
+                    + i + '</a>';
+                }
+                $("#pages").html(html);
+            }
+            
+            function downloads() {
+                showLoader();
+                $.get("/?mode=download&count=" + encodeURIComponent($("#count").text()) + "&page=" + encodeURIComponent($("#page").text()) + "&format=json", function(json) {
+                    if (json.success) {
+                        mode = "download";
+                        generatePages(parseInt($("#count").text()));
+                        setTimeout(function() {
+                            $("#main tbody").html(json.data);
+                            $("#main img").lazyload({
+                                effect : "fadeIn",
+                                placeholder: "applogo.gif"
+                            });
+                        }, 0);
+                    } else {
+                        alert(json.message);
+                    }
+                    hideLoader();
+                });
+            }
+            
+            function search() {
+                if ($("#term").val().length !== 0) $("#page").text(1);
+                showLoader();
+                $.get("/?search=" + encodeURIComponent($("#term").val()) + "&count=" + encodeURIComponent($("#count").text()) + "&page=" + encodeURIComponent($("#page").text()) + "&format=json", function(json) {
+                    if (json.success) {
+                        mode = "default";
+                        generatePages(parseInt($("#count").text()));
+                        setTimeout(function() {
+                            $("#main tbody").html(json.data);
+                            $("#main img").lazyload({
+                                effect : "fadeIn",
+                                placeholder: "applogo.gif"
+                            });
+                        }, 0);
+                    } else {
+                        alert(json.message);
+                    }
+                    hideLoader();
+                });
+            }
+            
+            function showLoader() {
+                setTimeout(function() {
+                    $("#main").fadeTo("fast", 0.3);
+                    //$("#main").css("opacity", 0.3);
+                }, 0);
+                setTimeout(function() {
+                    $(".LoadingWrapper").fadeIn();
+                    //$(".LoadingWrapper").show();
+                }, 0);
+            }
+            
+            function hideLoader() {
+                setTimeout(function() {
+                    $("#main").fadeTo("fast", 1);
+                    //$("#main").css("opacity", 1);
+                }, 0);
+                setTimeout(function() {
+                    $(".LoadingWrapper").fadeOut();
+                    //$(".LoadingWrapper").hide();
+                }, 0);
+            }
+            
+            function openWithoutReferrer(event) {
+                event.preventDefault();
+                event.returnValue = false;
+                event.stopPropagation();
+                var url = event.currentTarget.href;
+                window.open("javascript:window.name", "<script>location.replace('" + url + "')<\/script>");
+                return false;
+            }
+        </script>
+    </head>
+    <body class="v6 account">
+                <div id="changelanguage" style="width: 95%; position: absolute; padding-top: 20px;">
+                    <button type="button" class="btnv6_blue_hoverfade btn_small" onclick="location.hash='FAQ'" style="margin-left: 10px; float:right; "><span>FAQ</span></button>
+                    <div class="dselect_container" onclick="$(this).find('ul').toggleClass('dropdownvisible dropdownhidden')" style="float: right; width: 150px;">
+                        <a class="trigger" id="changelanguage">%%CHANGELANGUAGE%%</a>
+                        <div class="dropcontainer">
+                            <ul class="dropdownhidden" id="languages">
+                                <li><a class="inactive_selection" tabindex="99999" href="/?lang=en" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">English</a></li>
+                                <li><a class="inactive_selection" tabindex="99999" href="/?lang=de" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">Deutsch</a></li>
+                                <li><a class="inactive_selection" tabindex="99999" href="/?lang=fr" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">Français</a></li>
+                                <li><a class="inactive_selection" tabindex="99999" href="/?lang=es" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">Español</a></li>
+                                <li><a class="inactive_selection" tabindex="99999" href="/?lang=nl" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">Nederlands</a></li>
+                                <li><a class="inactive_selection" tabindex="99999" href="/?lang=ru" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">Русский</a></li>
+                                <li><a class="inactive_selection" tabindex="99999" href="/?lang=ee" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">Eesti</a></li>
+                                <li><a class="inactive_selection" tabindex="99999" href="/?lang=ua" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">Українська</a></li>
+                                <li><a class="inactive_selection" tabindex="99999" href="/?lang=ro" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">Română</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+        <div class="page_header_ctn account_management">
+            <div class="page_content" style="width: 90%;">
+                <div class="breadcrumbs">
+                    <div style="clear: left;"></div>
+                </div>
+                <a href="javascript:mode='default';$('#term').val('');search()">
+                    <img src="/logo_256.png" alt="logo" style="text-align: center; display: block; margin: 0 auto;"></img>
+                    <h2 style="font-size: 72px; margin-top: -20px;" class="pageheader" align="center">PiratePowered</h2>
+                </a>
+                <h3 class="pageheader" align="center" id="globalstatus" style="cursor: help;" title="The current status of PiratePowered">%%STATUS%%</h2>
+            </div>
+        </div>
+        <div class="page_content_ctn">
+            <div id="main_content" class="page_content" style="width: 90%;">
+                <div class="searchbar" style="min-width: 915px;">
+                    <div class="sortbox">
+                        <div class="label" style="margin-left: 10px;">%%COUNT%%</div>
+                        <div class="dselect_container" onclick="$(this).find('ul').toggleClass('dropdownvisible dropdownhidden')">
+                            <a class="trigger" id="count">100</a>
+                            <div class="dropcontainer">
+                                <ul class="dropdownhidden">
+                                    <li>
+                                        <a class="inactive_selection" tabindex="99999" href="javascript:changeCount(10)" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">10</a>
+                                    </li>
+                                    <li>
+                                        <a class="inactive_selection" tabindex="99999" href="javascript:changeCount(20)" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">20</a>
+                                    </li>
+                                    <li>
+                                        <a class="inactive_selection" tabindex="99999" href="javascript:changeCount(50)" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">50</a>
+                                    </li>
+                                    <li>
+                                        <a class="inactive_selection" tabindex="99999" href="javascript:changeCount(100)" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">100</a>
+                                    </li>
+                                    <li>
+                                        <a class="inactive_selection" tabindex="99999" href="javascript:changeCount(200)" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">200</a>
+                                    </li>
+                                    <li>
+                                        <a class="inactive_selection" tabindex="99999" href="javascript:changeCount(500)" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">500</a>
+                                    </li>
+                                    <li>
+                                        <a class="inactive_selection" tabindex="99999" href="javascript:changeCount(1000)" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">1000</a>
+                                    </li>
+                                    <li>
+                                        <a class="inactive_selection" tabindex="99999" href="javascript:changeCount(2000)" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">2000</a>
+                                    </li>
+                                    <li>
+                                        <a class="inactive_selection" tabindex="99999" href="javascript:changeCount(5000)" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">5000</a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="label" style="margin-left: 10px;">%%PAGE%%</div>
+                        <div class="dselect_container" onclick="$(this).find('ul').toggleClass('dropdownvisible dropdownhidden')">
+                            <a class="trigger" id="page">1</a>
+                            <div class="dropcontainer">
+                                <ul class="dropdownhidden">
+                                    <li id="pages">
+                                        <a class="inactive_selection" tabindex="99999" href="javascript:changePage(1)" onmouseover="$(this).toggleClass('highlighted_selection inactive_selection')" onmouseleave="$(this).toggleClass('highlighted_selection inactive_selection')">1</a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>                
+                    </div>
+                    <div class="searchbar_left">
+                        <input type="text" class="text" autocomplete="off" placeholder="%%SEARCHTEXT%%" id="term" onkeypress="javascript: if (event.which == 13 || event.keyCode == 13) search();">
+                        <button type="button" class="btnv6_blue_hoverfade btn_small" onclick="mode='default';search()"><span>%%SEARCHBUTTON%%</span></button>
+                        <button type="button" class="btnv6_blue_hoverfade btn_small" onclick="downloads()" style="position: absolute; left: 50%; margin-left: -60px; margin-top: 2px;"><span>%%DOWNLOADSONLY%%</span></button>
+                    </div>
+                    <div style="clear: both;"></div>
+                </div>
+                <table class="wallet_history_table" id="main" style="width: 100%; min-width: 915px;">
+                    <div class="LoadingWrapper" style="display: none; position: absolute; max-width: 100%; width: 100%; margin-left: -62px; margin-top: 10%; z-index: 2147483647;">
+                        <div class="LoadingThrobber">
+                            <div class="Bar Bar1"></div>
+                            <div class="Bar Bar2"></div>
+                            <div class="Bar Bar3"></div>
+                        </div>
+                    </div>
+                    <thead>
+                        <tr height="40">
+                            <th rowspan="2">%%PICTURE%%</th>
+                            <th rowspan="2">%%APPID%%</th>
+                            <th rowspan="2">%%NAME%%</th>
+                            <th rowspan="2">%%DEVELOPER%%</th>
+                            <th rowspan="2">%%PUBLISHER%%</th>
+                            <th rowspan="2">%%RATING%%</th>
+                            <th rowspan="2">%%LINKS%%</th>
+                            <th rowspan="2">%%DOWNLOAD%%</th>
+                            <th rowspan="2">%%VOTES%%</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        %%TABLE%%
+                    </tbody>
+                </table>
+            </div>
+            <div style="clear: both;"></div>
+        </div>
+        </div>
+        <div id="footer" style="margin-top: 50px; position: relative;">
+            <div class="footer_content">
+                <h3>%%DISCLAIMER%%</h3>
+                <p><span>%%DISCLAIMERTEXT%%</span></p>
+                <br><br><div class="rule" id="FAQ"></div>
+                <h3>%%FAQ%%</h3>
+                <br>
+                <p><h2>%%FIRSTQUESTION%%</h2>
+                <span>%%FIRSTANSWER%%</span></p>
+                <br>
+                <p><h2>%%SECONDQUESTION%%</h2>
+                <span>%%SECONDANSWER%%
+                <ol style="padding: 15px;">
+                <li>%%SECONDANSWER1%%</li>
+                <li>%%SECONDANSWER2%%</li>
+                <li>%%SECONDANSWER3%%</li>
+                <li>%%SECONDANSWER4%%</li>
+                </ol></span></p>
+                <br>
+                <p><h2>%%THIRDQUESTION%%</h2>
+                <span>%%THIRDANSWER%%</span></p>
+                <br>
+                <p><h2>%%FOURTHQUESTION%%</h2>
+                <span>%%FOURTHANSWER%%</span></p>
+                <br>
+                <p><h2>%%FIFTHQUESTION%%</h2>
+                <span>%%FIFTHANSWER%%<br>
+                <span>%%FIFTHANSWER2%%</span></p>
+                <br>
+                <p><h2>%%SIXTHQUESTION%%</h2>
+                <span>%%SIXTHANSWER%%</span></p>
+                <br>
+                <p><h2>%%SEVENTHQUESTION%%</h2>
+                <span>%%SEVENTHANSWER%%</span></p>
+                <br>
+                <p><h2>%%EIGHTHQUESTION%%</h2>
+                <span>%%EIGHTHANSWER%%</span></p>
+                <br>
+                <p><h2>%%NINTHQUESTION%%</h2>
+                <span>%%NINTHANSWER%%</span></p>
+                <br>
+                <p><h2>%%TENTHQUESTION%%</h2>
+                <span>%%TENTHANSWER%%</span></p>
+                <br>
+                <p><h2>%%ELEVENTHQUESTION%%</h2>
+                <span>%%ELEVENTHANSWER%%</span></p>
+                <br>
+                <p><h2>%%TWELFTHQUESTION%%</h2>
+                <span>%%TWELFTHANSWER%%</span></p>
+				<br><br><div class="rule"></div>
+                <br>%%COPYRIGHTS%%<br>
+            </div>
+        </div>
+    </body>
+</html>

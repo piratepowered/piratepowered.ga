@@ -1,0 +1,16 @@
+{
+    "name": "piratepowered.ga",
+    "author": "PiratePowered",
+    "description": "The source code for the (now retired) piratepowered.ga",
+    "version": "1.0.0",
+    "main": "index.js",
+    "dependencies": {
+        "steam-user": "latest",
+        "express": "latest",
+        "body-parser": "latest",
+        "child_process": "latest",
+        "path": "latest",
+        "node-7z": "latest",
+        "node-openload": "latest"
+    }
+}
