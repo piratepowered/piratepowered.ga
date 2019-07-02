@@ -1,5 +1,5 @@
 # piratepowered.ga
-The source code for (now retired) piratepowered.ga
+The source code for (now retired) piratepowered.ga. If you have issues setting this up, create an issue and I might reply.
 
 # Usage
 1. Install node.js*
